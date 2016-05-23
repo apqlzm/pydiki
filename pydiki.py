@@ -96,7 +96,7 @@ def db_prep():
 
 def show_history(date=''):
     """
-    Show history beginning with date
+    Show history beginning from date
     """
     conn, cursor = db_connect()
     if date == '':
