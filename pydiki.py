@@ -28,12 +28,10 @@ def print_definitions(word):
             if isinstance(e, element.NavigableString):
                 if len(e.string.strip()):
                     meaning = e.string.strip()
-                    # print('*', e.string.strip())
             else:
                 if e.name == 'span' and e['class'][0] == 'meaningAdditionalInformation':
                     if len(e.get_text('|').strip()) > 1:
                         add_info = e.get_text('|').strip()
-                        # print(e.get_text('|').strip())
         if meaning != '':
             meanings[meaning] = add_info
             found = True
@@ -102,11 +100,19 @@ def show_history(date=''):
     """
     conn, cursor = db_connect()
     if date == '':
-        cursor.execute('''SELECT MAX(createdate) FROM word''')
+        cursor.execute('''SELECT MIN(createdate) FROM word''')
         max_date = cursor.fetchone()
         date = datetime.datetime.strptime(max_date, DATE_FORMAT)
 
-    cursor.execute('SELECT word, meaning FROM word JOIN meaning ON id = wrd_id WHERE createdate >= (?)', (date.strftime(DATE_FORMAT),))
+    cursor.execute('SELECT word, meaning, ainfo, wrd_id FROM word JOIN meaning ON id = wrd_id WHERE createdate >= (?)', (date.strftime(DATE_FORMAT),))
+
+    last_word = ''
+    for r in cursor.fetchall():
+        (word, meaning, ainfo, wrd_id) = r
+        if last_word != word:
+            print('%s (id=%s)' % (word, wrd_id))
+            last_word = word
+        print('    %s %s' % (meaning, ainfo))
 
 
 def main():
@@ -127,8 +133,6 @@ def main():
 
     args = parser.parse_args()
 
-    print(args)
-
     if args.word:
         try:
             db_prep()
@@ -138,7 +142,6 @@ def main():
         print_definitions(args.word[0])
     elif args.date:
         show_history(args.date)
-        print(args.date)
 
 
 if __name__ == '__main__':
