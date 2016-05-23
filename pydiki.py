@@ -1,31 +1,56 @@
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, element
 import re
-import sys
 import sqlite3
 import datetime
+import argparse
+
+DATE_FORMAT = '%Y-%m-%d'
 
 
 def print_definitions(word):
+    """
+    Print definition and save in history
+    :param word: that's what will be translated
+    :return:
+    """
     found = False
     word = word.replace(' ', '+')
     result = requests.get('https://www.diki.pl/slownik-angielskiego?q=%s' % word)
     soup = BeautifulSoup(result.text, 'html.parser')
     lis = soup.find_all('li', re.compile('^meaning'))
-    meanings = list()
+    meanings = dict()
 
     for i, li in enumerate(lis):
-        found = True
-        definition = li.span.get_text().strip()
-        print('%s. %s' % (i+1, definition))
-        meanings.append(definition)
+        meaning = ''
+        add_info = ''
+        for e in li.find('span', re.compile('^hw')).children:
+            if isinstance(e, element.NavigableString):
+                if len(e.string.strip()):
+                    meaning = e.string.strip()
+                    # print('*', e.string.strip())
+            else:
+                if e.name == 'span' and e['class'][0] == 'meaningAdditionalInformation':
+                    if len(e.get_text('|').strip()) > 1:
+                        add_info = e.get_text('|').strip()
+                        # print(e.get_text('|').strip())
+        if meaning != '':
+            meanings[meaning] = add_info
+            found = True
+            print('%s. %s %s' % (i + 1, meaning, add_info))
 
     if found:
         add_to_db(word, meanings)
 
 
 def add_to_db(word, meanings):
-    date = datetime.datetime.now().strftime('%Y-%m-%d')
+    """
+    Add word and list off meanings to database
+    :param word:
+    :param meanings: translations
+    :return:
+    """
+    date = datetime.datetime.now().strftime(DATE_FORMAT)
     conn, c = db_connect()
     word_date = (word, date)
     try:
@@ -38,10 +63,11 @@ def add_to_db(word, meanings):
         return
     c.execute('SELECT id FROM word WHERE word = ?', (word,))
     wid = c.fetchone()
-    id_mean = [(wid[0], meaning) for meaning in meanings]
-    print(id_mean)
-    c.executemany('INSERT INTO meaning (wrd_id, meaning) VALUES (?, ?)', id_mean)
+    id_mean = [(wid[0], meaning, add_info) for meaning, add_info in meanings.items()]
+    c.executemany('INSERT INTO meaning (wrd_id, meaning, ainfo) VALUES (?, ?, ?)', id_mean)
     conn.commit()
+    c.close()
+    conn.close()
 
 
 def db_connect():
@@ -64,27 +90,52 @@ def db_prep():
                    word TEXT UNIQUE,
                    createdate TEXT)''')
     cursor.execute('''CREATE TABLE meaning (wrd_id INTEGER,
-                   meaning TEXT)''')
+                   meaning TEXT,
+                   ainfo TEXT)''')
     conn.commit()
     conn.close()
 
 
+def show_history(date=''):
+    conn, cursor = db_connect()
+    if date == '':
+        cursor.execute('''SELECT MAX(createdate) FROM word''')
+        max_date = cursor.fetchone()
+        date = datetime.datetime.strptime(max_date, DATE_FORMAT)
+
+    cursor.execute('SELECT word, meaning FROM word JOIN meaning ON id = wrd_id WHERE createdate >= (?)', (date.strftime(DATE_FORMAT),))
+
+
 def main():
     """
-    Prepare database if needed and search definition.
+    Prepare database if needed and search for a definition.
     :return:
     """
-    if len(sys.argv) == 2:
+    def date_type(arg_date):
+        return datetime.datetime.strptime(arg_date, DATE_FORMAT)
+
+    parser = argparse.ArgumentParser(description='English <-> Polish dictionary')
+    parser.add_argument('-t', dest='word', nargs=1,
+                        help='english or polish word to be translated. '
+                             'It is possible to have one or more words between quotes')
+    parser.add_argument('-l', type=date_type, dest='date', nargs='?',
+                        help='show history of searched words which are not marked as learned')
+    parser.add_argument('-m', dest='word_id', nargs=1, type=int, help='mark word as learned')
+
+    args = parser.parse_args()
+
+    print(args)
+
+    if args.word:
         try:
             db_prep()
         except sqlite3.OperationalError as e:
             if 'already exists' not in str(e):
                 raise
-        word = sys.argv[1]
-        print_definitions(word)
-    else:
-        print('Usage: \n$ python3 pydiki.py \"english or polish word\"\n'
-              'Argument can have one or more words between quotes.')
+        print_definitions(args.word[0])
+    elif args.date:
+        show_history(args.date)
+        print(args.date)
 
 
 if __name__ == '__main__':
