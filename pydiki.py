@@ -97,6 +97,9 @@ def db_prep():
 
 
 def show_history(date=''):
+    """
+    Show history beginning with date
+    """
     conn, cursor = db_connect()
     if date == '':
         cursor.execute('''SELECT MAX(createdate) FROM word''')
