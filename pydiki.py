@@ -7,8 +7,8 @@ import argparse
 import os
 
 DATE_FORMAT = '%Y-%m-%d'
-DB_PATH = 'pydiki.db'
-
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DB_PATH = os.path.join(BASE_DIR, 'pydiki.db')
 
 def print_definitions(word):
     """
@@ -131,7 +131,7 @@ def mark_learned(word_id):
     :return:
     """
     conn, cursor = db_connect()
-    cursor.execute('UPDATE word SET learned = 1 WHERE id = ?', (str(word_id),))
+    cursor.execute('UPDATE word SET learned = 1 WHERE id = ?', (str(word_id[0]),))
     conn.commit()
     cursor.close()
     conn.close()
