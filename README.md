@@ -1,7 +1,21 @@
 ### pydiki
 Słownik CLI angielsko <-> polski
 
-Skrypt pobiera jeden argument w postaci słowa do przetłumaczenia na język polski. Przykłady:
-* python3 pydiki.py "umbrella"
-* python3 pydiki.py "umbrella organization"
+#### Przykłady użycia
+Tłumaczenie słów
+```
+python3 pydiki.py -t "umbrella"
+python3 pydiki.py -t "umbrella organization"
+```
+
+Przeglądanie historii. Argumentem jest data początkowa.
+```
+python3 pydiki.py -l "2016-05-01"
+```
+
+Oznaczanie słowa jako nauczone. Argumentem jest id słowa które można podejrzeć przeglądając historię. 
+```
+python3 pydiki.py -m 1
+```
+
 
