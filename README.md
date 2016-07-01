@@ -8,9 +8,9 @@ python3 pydiki.py -t "umbrella"
 python3 pydiki.py -t "umbrella organization"
 ```
 
-Przeglądanie historii. Argumentem jest data początkowa.
+Przeglądanie historii. 
 ```
-python3 pydiki.py -l "2016-05-01"
+python3 pydiki.py -l 
 ```
 
 Oznaczanie słowa jako nauczone. Argumentem jest id słowa (id można podejrzeć w historii). 
