@@ -10,6 +10,7 @@ DATE_FORMAT = '%Y-%m-%d'
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(BASE_DIR, 'pydiki.db')
 
+
 def print_definitions(word):
     """
     Print definition and save in history
@@ -20,34 +21,40 @@ def print_definitions(word):
     word = word.replace(' ', '+')
     result = requests.get('https://www.diki.pl/slownik-angielskiego?q=%s' % word)
     soup = BeautifulSoup(result.text, 'html.parser')
-    lis = soup.find_all('li', re.compile('^meaning'))
     meanings = dict()
 
-    for i, li in enumerate(lis):
-        meaning = ''
-        add_info = ''
-        for e in li.find('span', re.compile('^hw')).children:
-            if isinstance(e, element.NavigableString):
-                if len(e.string.strip()):
-                    meaning = e.string.strip()
-                    add_info += '|en->pl|'
-            elif e.name == "a" and e.string:
-                meaning = e.string.strip()
-                add_info += '|pl->en|'
-            else:
-                if e.name == 'span' and e['class'][0] == 'meaningAdditionalInformation':
-                    # en -> pl
-                    if len(e.get_text('|').strip()) > 1:
-                        add_info = add_info + e.get_text('|').strip()
+    list_def = soup.find_all('ol', re.compile('foreignToNativeMeanings|nativeToForeignPartialEntries'))
 
-        if meaning != '':
-            meaning = meaning.replace('+', ' ')
-            meanings[meaning] = add_info
-            found = True
-            print('%s. %s %s' % (i + 1, meaning, add_info))
-
+    for ol in list_def:
+        add_info = '|en->pl|'
+        if 'foreignToNativeMeanings' in str(ol):
+            for i, m in enumerate(ol.find_all('li', re.compile('^meaning\d+'))):
+                meaning = ''
+                for span in m.find_all('span', 'hw'):
+                    meaning += span.text + ', '
+                if meaning:
+                    meaning = meaning.strip()[:-1]
+                    meanings[meaning] = add_info
+                    found = True
+                    print('%s. %s %s' % (i + 1, meaning, add_info))
+        else:
+            add_info = '|pl->en|'
+            j = 0
+            for li in ol.contents:
+                meaning = ''
+                if isinstance(li, element.Tag):
+                    for hw in li.contents:
+                        if isinstance(hw, element.Tag):
+                            if hw['class'][0] == 'hw':
+                                meaning += hw.text.strip() + ', '
+                if meaning:
+                    j += 1
+                    meaning = meaning.strip()[:-1]
+                    meanings[meaning] = add_info
+                    found = True
+                    print('%s. %s %s' % (j, meaning, add_info))
     if found:
-        add_to_db(word, meanings)
+        add_to_db(word.replace('+', ''), meanings)
 
 
 def add_to_db(word, meanings):
@@ -105,13 +112,13 @@ def db_prep():
     conn.close()
 
 
-def show_history(date):
+def show_history(begin_date='2000-01-01'):
     """
-    Show history beginning from date
+    Show history since date
     """
     conn, cursor = db_connect()
     cursor.execute('SELECT word, meaning, ainfo, word_id FROM word JOIN meaning ON id = word_id '
-                   'WHERE createdate >= (?) AND learned = 0', (date.strftime(DATE_FORMAT),))
+                   'WHERE createdate >= (?) AND learned = 0', (begin_date,))
 
     last_word = ''
     for r in cursor.fetchall():
@@ -142,6 +149,7 @@ def main():
     Prepare database if needed and search for a definition.
     :return:
     """
+
     def date_type(arg_date):
         return datetime.datetime.strptime(arg_date, DATE_FORMAT)
 
@@ -149,7 +157,7 @@ def main():
     parser.add_argument('-t', dest='word', nargs=1,
                         help='english or polish word to be translated. '
                              'It is possible to have one or more words between quotes')
-    parser.add_argument('-l', type=date_type, dest='date', nargs='?',
+    parser.add_argument('-l', dest='date', action='store_true',
                         help='show history of searched words which are not marked as learned '
                              'since specified date (format: yyyy-MM-dd)')
     parser.add_argument('-m', dest='word_id', nargs=1, type=int, help='mark word as learned')
@@ -167,7 +175,7 @@ def main():
         print('[ERROR] db file doesn\'t exist yet. Please translate (-t) at least one word.')
         return
     elif args.date:
-        show_history(args.date)
+        show_history()
     elif args.word_id:
         mark_learned(args.word_id)
 
