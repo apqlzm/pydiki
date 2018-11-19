@@ -23,8 +23,9 @@ def print_definitions(word):
     soup = BeautifulSoup(result.text, 'html.parser')
     meanings = dict()
 
-    list_def = soup.find_all('ol', re.compile('foreignToNativeMeanings|nativeToForeignPartialEntries'))
-
+    list_def = soup.find_all('ol', re.compile(
+        'foreignToNativeMeanings|nativeToForeignEntrySlices'))
+    
     for ol in list_def:
         add_info = '|en->pl|'
         if 'foreignToNativeMeanings' in str(ol):
@@ -73,7 +74,7 @@ def add_to_db(word, meanings):
     except sqlite3.IntegrityError:
         c.close()
         conn.close()
-        print('(Info) Definition already exists in db')
+        print('(Info) Definition could not be saved')
         return
     c.execute('SELECT id FROM word WHERE word = ?', (word,))
     wid = c.fetchone()
